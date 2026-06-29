@@ -452,12 +452,26 @@ pub enum Name {
     TextBeforeMdxJsx,
     TextBeforeHardBreakEscape,
     TextBeforeLabelStartLink,
+    TextBeforeLabelStartImage,
+    TextBeforeGfmLabelStartFootnote,
     TextBeforeData,
 
     ThematicBreakStart,
     ThematicBreakBefore,
     ThematicBreakSequence,
     ThematicBreakAtBreak,
+
+    WikiLinkStart,
+    WikiEmbedStart,
+    WikiBefore,
+    WikiTargetStart,
+    WikiTarget,
+    WikiFragmentStart,
+    WikiFragment,
+    WikiAliasStart,
+    WikiAlias,
+    WikiClose,
+    WikiCloseAfter,
 
     TitleStart,
     TitleBegin,
@@ -951,12 +965,28 @@ pub fn call(tokenizer: &mut Tokenizer, name: Name) -> State {
         Name::TextBeforeMdxJsx => construct::text::before_mdx_jsx,
         Name::TextBeforeHardBreakEscape => construct::text::before_hard_break_escape,
         Name::TextBeforeLabelStartLink => construct::text::before_label_start_link,
+        Name::TextBeforeLabelStartImage => construct::text::before_label_start_image,
+        Name::TextBeforeGfmLabelStartFootnote => {
+            construct::text::before_gfm_label_start_footnote
+        }
         Name::TextBeforeData => construct::text::before_data,
 
         Name::ThematicBreakStart => construct::thematic_break::start,
         Name::ThematicBreakBefore => construct::thematic_break::before,
         Name::ThematicBreakSequence => construct::thematic_break::sequence,
         Name::ThematicBreakAtBreak => construct::thematic_break::at_break,
+
+        Name::WikiLinkStart => construct::wiki::link_start,
+        Name::WikiEmbedStart => construct::wiki::embed_start,
+        Name::WikiBefore => construct::wiki::before,
+        Name::WikiTargetStart => construct::wiki::target_start,
+        Name::WikiTarget => construct::wiki::target,
+        Name::WikiFragmentStart => construct::wiki::fragment_start,
+        Name::WikiFragment => construct::wiki::fragment,
+        Name::WikiAliasStart => construct::wiki::alias_start,
+        Name::WikiAlias => construct::wiki::alias,
+        Name::WikiClose => construct::wiki::close,
+        Name::WikiCloseAfter => construct::wiki::close_after,
 
         Name::TitleStart => construct::partial_title::start,
         Name::TitleBegin => construct::partial_title::begin,

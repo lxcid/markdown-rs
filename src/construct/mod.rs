@@ -73,6 +73,7 @@
 //! * [mdx expression (text)][mdx_expression_text]
 //! * [mdx jsx (flow)][mdx_jsx_flow]
 //! * [mdx jsx (text)][mdx_jsx_text]
+//! * [wiki link / embed][wiki]
 //!
 //! There are also several small subroutines typically used in different places:
 //!
@@ -196,3 +197,4 @@ pub mod raw_text;
 pub mod string;
 pub mod text;
 pub mod thematic_break;
+pub mod wiki;

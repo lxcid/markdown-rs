@@ -7,7 +7,7 @@ use crate::mdast::{
     ImageReference, InlineCode, InlineMath, Link, LinkReference, List, ListItem, Math,
     MdxFlowExpression, MdxJsxAttribute, MdxJsxExpressionAttribute, MdxJsxFlowElement,
     MdxJsxTextElement, MdxTextExpression, MdxjsEsm, Node, Paragraph, ReferenceKind, Root, Strong,
-    Table, TableCell, TableRow, Text, ThematicBreak, Toml, Yaml,
+    Table, TableCell, TableRow, Text, ThematicBreak, Toml, WikiEmbed, WikiLink, Yaml,
 };
 use crate::message;
 use crate::unist::{Point, Position};
@@ -330,6 +330,8 @@ fn enter(context: &mut CompileContext) -> Result<(), message::Message> {
         Name::Resource => on_enter_resource(context),
         Name::Strong => on_enter_strong(context),
         Name::ThematicBreak => on_enter_thematic_break(context),
+        Name::WikiLink => on_enter_wiki_link(context),
+        Name::WikiEmbed => on_enter_wiki_embed(context),
         _ => {}
     }
 
@@ -353,7 +355,9 @@ fn exit(context: &mut CompileContext) -> Result<(), message::Message> {
         | Name::ListUnordered
         | Name::Paragraph
         | Name::Strong
-        | Name::ThematicBreak => {
+        | Name::ThematicBreak
+        | Name::WikiLink
+        | Name::WikiEmbed => {
             on_exit(context)?;
         }
         Name::CharacterEscapeValue
@@ -431,6 +435,9 @@ fn exit(context: &mut CompileContext) -> Result<(), message::Message> {
         Name::ReferenceString => on_exit_reference_string(context),
         Name::ResourceDestinationString => on_exit_resource_destination_string(context),
         Name::ResourceTitleString => on_exit_resource_title_string(context),
+        Name::WikiTarget => on_exit_wiki_target(context),
+        Name::WikiFragment => on_exit_wiki_fragment(context),
+        Name::WikiAlias => on_exit_wiki_alias(context),
         _ => {}
     }
 
@@ -698,6 +705,72 @@ fn on_enter_strong(context: &mut CompileContext) {
 /// Handle [`Enter`][Kind::Enter]:[`ThematicBreak`][Name::ThematicBreak].
 fn on_enter_thematic_break(context: &mut CompileContext) {
     context.tail_push(Node::ThematicBreak(ThematicBreak { position: None }));
+}
+
+/// Handle [`Enter`][Kind::Enter]:[`WikiLink`][Name::WikiLink].
+fn on_enter_wiki_link(context: &mut CompileContext) {
+    context.tail_push(Node::WikiLink(WikiLink {
+        target: String::new(),
+        fragment: None,
+        alias: None,
+        position: None,
+    }));
+}
+
+/// Handle [`Enter`][Kind::Enter]:[`WikiEmbed`][Name::WikiEmbed].
+fn on_enter_wiki_embed(context: &mut CompileContext) {
+    context.tail_push(Node::WikiEmbed(WikiEmbed {
+        target: String::new(),
+        fragment: None,
+        alias: None,
+        position: None,
+    }));
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiTarget`][Name::WikiTarget].
+fn on_exit_wiki_target(context: &mut CompileContext) {
+    let value = Slice::from_position(
+        context.bytes,
+        &SlicePosition::from_exit_event(context.events, context.index),
+    )
+    .serialize();
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.target = value,
+        Node::WikiEmbed(node) => node.target = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiFragment`][Name::WikiFragment].
+fn on_exit_wiki_fragment(context: &mut CompileContext) {
+    let value = Some(
+        Slice::from_position(
+            context.bytes,
+            &SlicePosition::from_exit_event(context.events, context.index),
+        )
+        .serialize(),
+    );
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.fragment = value,
+        Node::WikiEmbed(node) => node.fragment = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiAlias`][Name::WikiAlias].
+fn on_exit_wiki_alias(context: &mut CompileContext) {
+    let value = Some(
+        Slice::from_position(
+            context.bytes,
+            &SlicePosition::from_exit_event(context.events, context.index),
+        )
+        .serialize(),
+    );
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.alias = value,
+        Node::WikiEmbed(node) => node.alias = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
 }
 
 /// Handle [`Enter`][Kind::Enter]:[`HeadingAtx`][Name::HeadingAtx].

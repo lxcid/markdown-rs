@@ -41,5 +41,7 @@ fn phrasing(child: &Node) -> bool {
             | Node::LinkReference(_)
             | Node::Strong(_)
             | Node::Text(_)
+            | Node::WikiLink(_)
+            | Node::WikiEmbed(_)
     )
 }

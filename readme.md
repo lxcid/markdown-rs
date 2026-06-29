@@ -193,9 +193,15 @@ They are not enabled by default but can be turned on with options.
   * JSX
 * frontmatter
 * math
+* wiki links & embeds (this fork) — Obsidian-style `[[…]]` / `![[…]]`
 
 It is not a goal of this project to support lots of different extensions.
 It’s instead a goal to support very common and mostly standardized extensions.
+
+> 👉 **Fork note (wiki)**: this fork adds opt-in, Obsidian-inspired wiki links
+> and embeds (`[[…]]` / `![[…]]`), enabled via the `constructs.wiki` flag
+> (default off). For the exact grammar and HTML output, see the `wiki`
+> construct docs and `tests/wiki.rs`.
 
 ## Project
 
