@@ -23,6 +23,8 @@ mod root;
 pub mod strong;
 mod text;
 mod thematic_break;
+mod wiki_embed;
+mod wiki_link;
 
 pub trait Handle {
     fn handle(

@@ -3377,11 +3377,29 @@ pub enum Name {
     /// ```
     ThematicBreakSequence,
 
+    /// Whole wiki link (`[[target#fragment|alias]]`).
+    WikiLink,
+    /// Whole wiki embed (`![[target#fragment|alias]]`).
+    WikiEmbed,
+    /// Wiki marker: an opener (`[[`, or `![[` for an embed) or the closer
+    /// (`]]`). The embed bang is part of the opening marker, not its own token.
+    WikiMarker,
+    /// Wiki target (page or resource path).
+    WikiTarget,
+    /// Wiki fragment marker (`#`).
+    WikiFragmentMarker,
+    /// Wiki fragment (heading / view after `#`).
+    WikiFragment,
+    /// Wiki alias marker (`|`).
+    WikiAliasMarker,
+    /// Wiki alias (display text after `|`).
+    WikiAlias,
+
     LinePrefix,
 }
 
 /// List of void events, used to make sure everything is working well.
-pub const VOID_EVENTS: [Name; 76] = [
+pub const VOID_EVENTS: [Name; 82] = [
     Name::AttentionSequence,
     Name::AutolinkEmail,
     Name::AutolinkMarker,
@@ -3458,6 +3476,12 @@ pub const VOID_EVENTS: [Name; 76] = [
     Name::SpaceOrTab,
     Name::StrongSequence,
     Name::ThematicBreakSequence,
+    Name::WikiMarker,
+    Name::WikiTarget,
+    Name::WikiFragmentMarker,
+    Name::WikiFragment,
+    Name::WikiAliasMarker,
+    Name::WikiAlias,
 ];
 
 /// Embedded content type.

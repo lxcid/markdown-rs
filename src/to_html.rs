@@ -56,6 +56,26 @@ struct Media {
     title: Option<String>,
 }
 
+/// Obsidian-style wiki link or embed, accumulated while its raw segments are
+/// seen and rendered on exit.
+///
+/// Both links and embeds render as an `<a>`: an embed is a transclusion that
+/// needs a resolver to inline its target, so without one a link is the honest
+/// HTML fallback. The [`WikiEmbed`] mdast node keeps the full
+/// `target`/`fragment`/`alias`, so a consumer with a real transclusion engine
+/// can resolve it however it likes.
+///
+/// [`WikiEmbed`]: crate::mdast::WikiEmbed
+#[derive(Debug)]
+struct Wiki {
+    /// Target page or resource (before `#`/`|`).
+    target: String,
+    /// Fragment after `#`, if any.
+    fragment: Option<String>,
+    /// Display alias after `|`, if any.
+    alias: Option<String>,
+}
+
 /// Representation of a definition.
 #[derive(Debug)]
 struct Definition {
@@ -102,6 +122,8 @@ struct CompileContext<'a> {
     list_expect_first_marker: Option<bool>,
     /// Stack of media (link, image).
     media_stack: Vec<Media>,
+    /// Stack of wiki links/embeds.
+    wiki_stack: Vec<Wiki>,
     /// Stack of containers.
     tight_stack: Vec<bool>,
     /// List of definitions.
@@ -150,6 +172,7 @@ impl<'a> CompileContext<'a> {
             character_reference_marker: None,
             list_expect_first_marker: None,
             media_stack: vec![],
+            wiki_stack: vec![],
             definitions: vec![],
             gfm_footnote_definitions: vec![],
             gfm_footnote_definition_calls: vec![],
@@ -356,6 +379,7 @@ fn enter(context: &mut CompileContext) {
         Name::Resource => on_enter_resource(context),
         Name::ResourceDestinationString => on_enter_resource_destination_string(context),
         Name::Strong => on_enter_strong(context),
+        Name::WikiLink | Name::WikiEmbed => on_enter_wiki(context),
         _ => {}
     }
 }
@@ -437,6 +461,10 @@ fn exit(context: &mut CompileContext) {
         Name::ResourceTitleString => on_exit_resource_title_string(context),
         Name::Strong => on_exit_strong(context),
         Name::ThematicBreak => on_exit_thematic_break(context),
+        Name::WikiTarget => on_exit_wiki_target(context),
+        Name::WikiFragment => on_exit_wiki_fragment(context),
+        Name::WikiAlias => on_exit_wiki_alias(context),
+        Name::WikiLink | Name::WikiEmbed => on_exit_wiki(context),
         _ => {}
     }
 }
@@ -1513,6 +1541,90 @@ fn on_exit_media(context: &mut CompileContext) {
             context.push("</a>");
         }
     }
+}
+
+/// Handle [`Enter`][Kind::Enter]:{[`WikiLink`][Name::WikiLink],[`WikiEmbed`][Name::WikiEmbed]}.
+///
+/// Links and embeds accumulate identically here and both render as `<a>` on
+/// exit, so they share one enter handler.
+fn on_enter_wiki(context: &mut CompileContext) {
+    context.wiki_stack.push(Wiki {
+        target: String::new(),
+        fragment: None,
+        alias: None,
+    });
+}
+
+/// Serialize the source covered by the current exit event.
+fn wiki_slice(context: &CompileContext) -> String {
+    Slice::from_position(
+        context.bytes,
+        &Position::from_exit_event(context.events, context.index),
+    )
+    .serialize()
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiTarget`][Name::WikiTarget].
+fn on_exit_wiki_target(context: &mut CompileContext) {
+    let value = wiki_slice(context);
+    context.wiki_stack.last_mut().expect("expected wiki").target = value;
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiFragment`][Name::WikiFragment].
+fn on_exit_wiki_fragment(context: &mut CompileContext) {
+    let value = wiki_slice(context);
+    context.wiki_stack.last_mut().expect("expected wiki").fragment = Some(value);
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiAlias`][Name::WikiAlias].
+fn on_exit_wiki_alias(context: &mut CompileContext) {
+    let value = wiki_slice(context);
+    context.wiki_stack.last_mut().expect("expected wiki").alias = Some(value);
+}
+
+/// Handle [`Exit`][Kind::Exit]:{[`WikiLink`][Name::WikiLink],[`WikiEmbed`][Name::WikiEmbed]}.
+fn on_exit_wiki(context: &mut CompileContext) {
+    let wiki = context.wiki_stack.pop().expect("expected wiki on stack");
+
+    // Build the URL as `target[#fragment]`.
+    let mut url = wiki.target.clone();
+    if let Some(fragment) = &wiki.fragment {
+        url.push('#');
+        url.push_str(fragment);
+    }
+
+    // Display text: alias, else the target, else (empty target) the fragment.
+    let label = if let Some(alias) = &wiki.alias {
+        alias.clone()
+    } else if !wiki.target.is_empty() {
+        wiki.target.clone()
+    } else if let Some(fragment) = &wiki.fragment {
+        fragment.clone()
+    } else {
+        String::new()
+    };
+
+    // Inside an image alt, only the textual label is emitted.
+    if context.image_alt_inside {
+        context.push(&encode(&label, context.encode_html));
+        return;
+    }
+
+    // Both links and embeds render as `<a>`. An embed is a transclusion that
+    // needs a resolver to inline its target; without one, a link is the honest
+    // fallback. A consumer that resolves embeds reads the mdast `WikiEmbed`
+    // node, which keeps the full target/fragment/alias.
+    let safe_url = if context.options.allow_dangerous_protocol {
+        sanitize(&url)
+    } else {
+        sanitize_with_protocols(&url, &SAFE_PROTOCOL_HREF)
+    };
+
+    context.push("<a href=\"");
+    context.push(&safe_url);
+    context.push("\">");
+    context.push(&encode(&label, context.encode_html));
+    context.push("</a>");
 }
 
 /// Handle [`Exit`][Kind::Exit]:[`Paragraph`][Name::Paragraph].

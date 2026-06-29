@@ -16,8 +16,25 @@ fn serde_constructs() -> Result<(), Error> {
 
     assert_eq!(
         serde_json::to_string(&Constructs::default()).unwrap(),
-        r#"{"attention":true,"autolink":true,"blockQuote":true,"characterEscape":true,"characterReference":true,"codeIndented":true,"codeFenced":true,"codeText":true,"definition":true,"frontmatter":false,"gfmAutolinkLiteral":false,"gfmFootnoteDefinition":false,"gfmLabelStartFootnote":false,"gfmStrikethrough":false,"gfmTable":false,"gfmTaskListItem":false,"hardBreakEscape":true,"hardBreakTrailing":true,"headingAtx":true,"headingSetext":true,"htmlFlow":true,"htmlText":true,"labelStartImage":true,"labelStartLink":true,"labelEnd":true,"listItem":true,"mathFlow":false,"mathText":false,"mdxEsm":false,"mdxExpressionFlow":false,"mdxExpressionText":false,"mdxJsxFlow":false,"mdxJsxText":false,"thematicBreak":true}"#
+        r#"{"attention":true,"autolink":true,"blockQuote":true,"characterEscape":true,"characterReference":true,"codeIndented":true,"codeFenced":true,"codeText":true,"definition":true,"frontmatter":false,"gfmAutolinkLiteral":false,"gfmFootnoteDefinition":false,"gfmLabelStartFootnote":false,"gfmStrikethrough":false,"gfmTable":false,"gfmTaskListItem":false,"hardBreakEscape":true,"hardBreakTrailing":true,"headingAtx":true,"headingSetext":true,"htmlFlow":true,"htmlText":true,"labelStartImage":true,"labelStartLink":true,"labelEnd":true,"listItem":true,"mathFlow":false,"mathText":false,"mdxEsm":false,"mdxExpressionFlow":false,"mdxExpressionText":false,"mdxJsxFlow":false,"mdxJsxText":false,"thematicBreak":true,"wiki":false}"#
     );
+
+    Ok(())
+}
+
+/// `Constructs` JSON written before the `wiki` field existed (it omits `wiki`)
+/// must still deserialize, with `wiki` defaulting to off. `serde(default)` on
+/// the field guarantees this; without it, old saved options would error.
+#[test]
+#[cfg(feature = "serde")]
+fn serde_constructs_without_wiki_field() -> Result<(), Error> {
+    use pretty_assertions::assert_eq;
+
+    let legacy = r#"{"attention":true,"autolink":true,"blockQuote":true,"characterEscape":true,"characterReference":true,"codeIndented":true,"codeFenced":true,"codeText":true,"definition":true,"frontmatter":false,"gfmAutolinkLiteral":false,"gfmFootnoteDefinition":false,"gfmLabelStartFootnote":false,"gfmStrikethrough":false,"gfmTable":false,"gfmTaskListItem":false,"hardBreakEscape":true,"hardBreakTrailing":true,"headingAtx":true,"headingSetext":true,"htmlFlow":true,"htmlText":true,"labelStartImage":true,"labelStartLink":true,"labelEnd":true,"listItem":true,"mathFlow":false,"mathText":false,"mdxEsm":false,"mdxExpressionFlow":false,"mdxExpressionText":false,"mdxJsxFlow":false,"mdxJsxText":false,"thematicBreak":true}"#;
+
+    let parsed: Constructs = serde_json::from_str(legacy).map_err(Error::Serde)?;
+    assert_eq!(parsed, Constructs::default());
+    assert!(!parsed.wiki);
 
     Ok(())
 }
@@ -42,7 +59,7 @@ fn serde_parse_options() -> Result<(), Error> {
 
     assert_eq!(
         serde_json::to_string(&ParseOptions::gfm()).unwrap(),
-        r#"{"constructs":{"attention":true,"autolink":true,"blockQuote":true,"characterEscape":true,"characterReference":true,"codeIndented":true,"codeFenced":true,"codeText":true,"definition":true,"frontmatter":false,"gfmAutolinkLiteral":true,"gfmFootnoteDefinition":true,"gfmLabelStartFootnote":true,"gfmStrikethrough":true,"gfmTable":true,"gfmTaskListItem":true,"hardBreakEscape":true,"hardBreakTrailing":true,"headingAtx":true,"headingSetext":true,"htmlFlow":true,"htmlText":true,"labelStartImage":true,"labelStartLink":true,"labelEnd":true,"listItem":true,"mathFlow":false,"mathText":false,"mdxEsm":false,"mdxExpressionFlow":false,"mdxExpressionText":false,"mdxJsxFlow":false,"mdxJsxText":false,"thematicBreak":true},"gfmStrikethroughSingleTilde":true,"mathTextSingleDollar":true}"#
+        r#"{"constructs":{"attention":true,"autolink":true,"blockQuote":true,"characterEscape":true,"characterReference":true,"codeIndented":true,"codeFenced":true,"codeText":true,"definition":true,"frontmatter":false,"gfmAutolinkLiteral":true,"gfmFootnoteDefinition":true,"gfmLabelStartFootnote":true,"gfmStrikethrough":true,"gfmTable":true,"gfmTaskListItem":true,"hardBreakEscape":true,"hardBreakTrailing":true,"headingAtx":true,"headingSetext":true,"htmlFlow":true,"htmlText":true,"labelStartImage":true,"labelStartLink":true,"labelEnd":true,"listItem":true,"mathFlow":false,"mathText":false,"mdxEsm":false,"mdxExpressionFlow":false,"mdxExpressionText":false,"mdxJsxFlow":false,"mdxJsxText":false,"thematicBreak":true,"wiki":false},"gfmStrikethroughSingleTilde":true,"mathTextSingleDollar":true}"#
     );
 
     Ok(())

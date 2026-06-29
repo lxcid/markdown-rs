@@ -325,6 +325,8 @@ impl<'a> State<'a> {
             Node::ThematicBreak(thematic_break) => thematic_break.handle(self, info, parent, node),
             Node::Math(math) => math.handle(self, info, parent, node),
             Node::InlineMath(inline_math) => inline_math.handle(self, info, parent, node),
+            Node::WikiLink(wiki_link) => wiki_link.handle(self, info, parent, node),
+            Node::WikiEmbed(wiki_embed) => wiki_embed.handle(self, info, parent, node),
             _ => Err(Message {
                 place: None,
                 reason: format!("Unexpected node type `{:?}`", node),

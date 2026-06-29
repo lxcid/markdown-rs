@@ -219,6 +219,10 @@ pub enum Node {
     Strong(Strong),
     /// Text.
     Text(Text),
+    /// Wiki link.
+    WikiLink(WikiLink),
+    /// Wiki embed.
+    WikiEmbed(WikiEmbed),
 
     // Flow:
     /// Code (flow).
@@ -282,6 +286,8 @@ impl fmt::Debug for Node {
             Node::LinkReference(x) => x.fmt(f),
             Node::Strong(x) => x.fmt(f),
             Node::Text(x) => x.fmt(f),
+            Node::WikiLink(x) => x.fmt(f),
+            Node::WikiEmbed(x) => x.fmt(f),
             Node::Code(x) => x.fmt(f),
             Node::Math(x) => x.fmt(f),
             Node::MdxFlowExpression(x) => x.fmt(f),
@@ -338,13 +344,28 @@ impl ToString for Node {
             Node::Math(x) => x.value.clone(),
             Node::MdxFlowExpression(x) => x.value.clone(),
 
-            // Voids.
+            // A wiki link has visible text (like a `Link`): the alias, else the
+            // target, else — for an empty-target same-note link — its fragment.
+            Node::WikiLink(x) => {
+                if let Some(alias) = &x.alias {
+                    alias.clone()
+                } else if !x.target.is_empty() {
+                    x.target.clone()
+                } else if let Some(fragment) = &x.fragment {
+                    fragment.clone()
+                } else {
+                    String::new()
+                }
+            }
+
+            // Voids. A `WikiEmbed` is media (like `Image`): no text content.
             Node::Break(_)
             | Node::FootnoteReference(_)
             | Node::Image(_)
             | Node::ImageReference(_)
             | Node::ThematicBreak(_)
-            | Node::Definition(_) => String::new(),
+            | Node::Definition(_)
+            | Node::WikiEmbed(_) => String::new(),
         }
     }
 }
@@ -427,6 +448,8 @@ impl Node {
             Node::LinkReference(x) => x.position.as_ref(),
             Node::Strong(x) => x.position.as_ref(),
             Node::Text(x) => x.position.as_ref(),
+            Node::WikiLink(x) => x.position.as_ref(),
+            Node::WikiEmbed(x) => x.position.as_ref(),
             Node::Code(x) => x.position.as_ref(),
             Node::Math(x) => x.position.as_ref(),
             Node::MdxFlowExpression(x) => x.position.as_ref(),
@@ -466,6 +489,8 @@ impl Node {
             Node::LinkReference(x) => x.position.as_mut(),
             Node::Strong(x) => x.position.as_mut(),
             Node::Text(x) => x.position.as_mut(),
+            Node::WikiLink(x) => x.position.as_mut(),
+            Node::WikiEmbed(x) => x.position.as_mut(),
             Node::Code(x) => x.position.as_mut(),
             Node::Math(x) => x.position.as_mut(),
             Node::MdxFlowExpression(x) => x.position.as_mut(),
@@ -505,6 +530,8 @@ impl Node {
             Node::LinkReference(x) => x.position = position,
             Node::Strong(x) => x.position = position,
             Node::Text(x) => x.position = position,
+            Node::WikiLink(x) => x.position = position,
+            Node::WikiEmbed(x) => x.position = position,
             Node::Code(x) => x.position = position,
             Node::Math(x) => x.position = position,
             Node::MdxFlowExpression(x) => x.position = position,
@@ -644,6 +671,50 @@ pub struct Heading {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ThematicBreak {
     // Void.
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+}
+
+/// Obsidian-style wiki link.
+///
+/// ```markdown
+/// > | a [[Page#Heading|Alias]] b
+///       ^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WikiLink {
+    /// Target page or resource (before `#`/`|`).
+    pub target: String,
+    /// Fragment after `#` (heading), if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub fragment: Option<String>,
+    /// Display alias after `|`, if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub alias: Option<String>,
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+}
+
+/// Obsidian-style wiki embed.
+///
+/// ```markdown
+/// > | a ![[clip.mp4#t=10]] b
+///       ^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WikiEmbed {
+    /// Target page or resource (before `#`/`|`).
+    pub target: String,
+    /// Fragment after `#` (view), if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub fragment: Option<String>,
+    /// Display alias after `|`, if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub alias: Option<String>,
     /// Positional info.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub position: Option<Position>,

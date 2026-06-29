@@ -20,6 +20,7 @@
 //! * [Label end][crate::construct::label_end]
 //! * [MDX: expression (text)][crate::construct::mdx_expression_text]
 //! * [MDX: JSX (text)][crate::construct::mdx_jsx_text]
+//! * [Wiki link / embed][crate::construct::wiki] (this fork's opt-in Obsidian extension)
 //!
 //! > 👉 **Note**: for performance reasons, hard break (trailing) is formed by
 //! > [whitespace][crate::construct::partial_whitespace].
@@ -33,14 +34,14 @@ use crate::tokenizer::Tokenizer;
 
 /// Characters that can start something in text.
 const MARKERS: [u8; 16] = [
-    b'!',  // `label_start_image`
+    b'!',  // `label_start_image`, `wiki` (embed)
     b'$',  // `raw_text` (math (text))
     b'&',  // `character_reference`
     b'*',  // `attention` (emphasis, strong)
     b'<',  // `autolink`, `html_text`, `mdx_jsx_text`
     b'H',  // `gfm_autolink_literal` (`protocol` kind)
     b'W',  // `gfm_autolink_literal` (`www.` kind)
-    b'[',  // `label_start_link`
+    b'[',  // `label_start_link`, `wiki` (link)
     b'\\', // `character_escape`, `hard_break_escape`
     b']',  // `label_end`, `gfm_label_start_footnote`
     b'_',  // `attention` (emphasis, strong)
@@ -86,9 +87,9 @@ pub fn before(tokenizer: &mut Tokenizer) -> State {
         Some(b'!') => {
             tokenizer.attempt(
                 State::Next(StateName::TextBefore),
-                State::Next(StateName::TextBeforeData),
+                State::Next(StateName::TextBeforeLabelStartImage),
             );
-            State::Retry(StateName::LabelStartImageStart)
+            State::Retry(StateName::WikiEmbedStart)
         }
         // raw (text) (code (text), math (text))
         Some(b'$' | b'`') => {
@@ -138,9 +139,9 @@ pub fn before(tokenizer: &mut Tokenizer) -> State {
         Some(b'[') => {
             tokenizer.attempt(
                 State::Next(StateName::TextBefore),
-                State::Next(StateName::TextBeforeLabelStartLink),
+                State::Next(StateName::TextBeforeGfmLabelStartFootnote),
             );
-            State::Retry(StateName::GfmLabelStartFootnoteStart)
+            State::Retry(StateName::WikiLinkStart)
         }
         Some(b'\\') => {
             tokenizer.attempt(
@@ -229,6 +230,38 @@ pub fn before_label_start_link(tokenizer: &mut Tokenizer) -> State {
         State::Next(StateName::TextBeforeData),
     );
     State::Retry(StateName::LabelStartLinkStart)
+}
+
+/// Before GFM label start (footnote).
+///
+/// At `[`, which wasn’t a wiki link.
+///
+/// ```markdown
+/// > | [^a]
+///     ^
+/// ```
+pub fn before_gfm_label_start_footnote(tokenizer: &mut Tokenizer) -> State {
+    tokenizer.attempt(
+        State::Next(StateName::TextBefore),
+        State::Next(StateName::TextBeforeLabelStartLink),
+    );
+    State::Retry(StateName::GfmLabelStartFootnoteStart)
+}
+
+/// Before label start (image).
+///
+/// At `!`, which wasn’t a wiki embed.
+///
+/// ```markdown
+/// > | ![a](b)
+///     ^
+/// ```
+pub fn before_label_start_image(tokenizer: &mut Tokenizer) -> State {
+    tokenizer.attempt(
+        State::Next(StateName::TextBefore),
+        State::Next(StateName::TextBeforeData),
+    );
+    State::Retry(StateName::LabelStartImageStart)
 }
 
 /// Before data.
