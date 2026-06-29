@@ -177,6 +177,10 @@ pub enum Node {
     FootnoteDefinition(FootnoteDefinition),
     /// MDX: JSX element (container).
     MdxJsxFlowElement(MdxJsxFlowElement),
+    /// Directive (container).
+    ContainerDirective(ContainerDirective),
+    /// Directive (leaf).
+    LeafDirective(LeafDirective),
     /// List.
     List(List),
 
@@ -219,6 +223,12 @@ pub enum Node {
     Strong(Strong),
     /// Text.
     Text(Text),
+    /// Directive (text).
+    TextDirective(TextDirective),
+    /// Wiki link.
+    WikiLink(WikiLink),
+    /// Wiki embed.
+    WikiEmbed(WikiEmbed),
 
     // Flow:
     /// Code (flow).
@@ -263,6 +273,8 @@ impl fmt::Debug for Node {
             Node::Blockquote(x) => x.fmt(f),
             Node::FootnoteDefinition(x) => x.fmt(f),
             Node::MdxJsxFlowElement(x) => x.fmt(f),
+            Node::ContainerDirective(x) => x.fmt(f),
+            Node::LeafDirective(x) => x.fmt(f),
             Node::List(x) => x.fmt(f),
             Node::MdxjsEsm(x) => x.fmt(f),
             Node::Toml(x) => x.fmt(f),
@@ -282,6 +294,9 @@ impl fmt::Debug for Node {
             Node::LinkReference(x) => x.fmt(f),
             Node::Strong(x) => x.fmt(f),
             Node::Text(x) => x.fmt(f),
+            Node::TextDirective(x) => x.fmt(f),
+            Node::WikiLink(x) => x.fmt(f),
+            Node::WikiEmbed(x) => x.fmt(f),
             Node::Code(x) => x.fmt(f),
             Node::Math(x) => x.fmt(f),
             Node::MdxFlowExpression(x) => x.fmt(f),
@@ -311,6 +326,9 @@ impl ToString for Node {
             Node::Blockquote(x) => children_to_string(&x.children),
             Node::FootnoteDefinition(x) => children_to_string(&x.children),
             Node::MdxJsxFlowElement(x) => children_to_string(&x.children),
+            Node::ContainerDirective(x) => children_to_string(&x.children),
+            Node::LeafDirective(x) => children_to_string(&x.children),
+            Node::TextDirective(x) => children_to_string(&x.children),
             Node::List(x) => children_to_string(&x.children),
             Node::Delete(x) => children_to_string(&x.children),
             Node::Emphasis(x) => children_to_string(&x.children),
@@ -337,6 +355,10 @@ impl ToString for Node {
             Node::Code(x) => x.value.clone(),
             Node::Math(x) => x.value.clone(),
             Node::MdxFlowExpression(x) => x.value.clone(),
+
+            // Wiki (display text).
+            Node::WikiLink(x) => x.alias.clone().unwrap_or_else(|| x.target.clone()),
+            Node::WikiEmbed(x) => x.alias.clone().unwrap_or_else(|| x.target.clone()),
 
             // Voids.
             Node::Break(_)
@@ -371,6 +393,9 @@ impl Node {
             Node::Delete(x) => Some(&x.children),
             Node::MdxJsxFlowElement(x) => Some(&x.children),
             Node::MdxJsxTextElement(x) => Some(&x.children),
+            Node::ContainerDirective(x) => Some(&x.children),
+            Node::LeafDirective(x) => Some(&x.children),
+            Node::TextDirective(x) => Some(&x.children),
             // Non-parent.
             _ => None,
         }
@@ -396,6 +421,9 @@ impl Node {
             Node::Delete(x) => Some(&mut x.children),
             Node::MdxJsxFlowElement(x) => Some(&mut x.children),
             Node::MdxJsxTextElement(x) => Some(&mut x.children),
+            Node::ContainerDirective(x) => Some(&mut x.children),
+            Node::LeafDirective(x) => Some(&mut x.children),
+            Node::TextDirective(x) => Some(&mut x.children),
             // Non-parent.
             _ => None,
         }
@@ -408,6 +436,9 @@ impl Node {
             Node::Blockquote(x) => x.position.as_ref(),
             Node::FootnoteDefinition(x) => x.position.as_ref(),
             Node::MdxJsxFlowElement(x) => x.position.as_ref(),
+            Node::ContainerDirective(x) => x.position.as_ref(),
+            Node::LeafDirective(x) => x.position.as_ref(),
+            Node::TextDirective(x) => x.position.as_ref(),
             Node::List(x) => x.position.as_ref(),
             Node::MdxjsEsm(x) => x.position.as_ref(),
             Node::Toml(x) => x.position.as_ref(),
@@ -427,6 +458,8 @@ impl Node {
             Node::LinkReference(x) => x.position.as_ref(),
             Node::Strong(x) => x.position.as_ref(),
             Node::Text(x) => x.position.as_ref(),
+            Node::WikiLink(x) => x.position.as_ref(),
+            Node::WikiEmbed(x) => x.position.as_ref(),
             Node::Code(x) => x.position.as_ref(),
             Node::Math(x) => x.position.as_ref(),
             Node::MdxFlowExpression(x) => x.position.as_ref(),
@@ -447,6 +480,9 @@ impl Node {
             Node::Blockquote(x) => x.position.as_mut(),
             Node::FootnoteDefinition(x) => x.position.as_mut(),
             Node::MdxJsxFlowElement(x) => x.position.as_mut(),
+            Node::ContainerDirective(x) => x.position.as_mut(),
+            Node::LeafDirective(x) => x.position.as_mut(),
+            Node::TextDirective(x) => x.position.as_mut(),
             Node::List(x) => x.position.as_mut(),
             Node::MdxjsEsm(x) => x.position.as_mut(),
             Node::Toml(x) => x.position.as_mut(),
@@ -466,6 +502,8 @@ impl Node {
             Node::LinkReference(x) => x.position.as_mut(),
             Node::Strong(x) => x.position.as_mut(),
             Node::Text(x) => x.position.as_mut(),
+            Node::WikiLink(x) => x.position.as_mut(),
+            Node::WikiEmbed(x) => x.position.as_mut(),
             Node::Code(x) => x.position.as_mut(),
             Node::Math(x) => x.position.as_mut(),
             Node::MdxFlowExpression(x) => x.position.as_mut(),
@@ -486,6 +524,9 @@ impl Node {
             Node::Blockquote(x) => x.position = position,
             Node::FootnoteDefinition(x) => x.position = position,
             Node::MdxJsxFlowElement(x) => x.position = position,
+            Node::ContainerDirective(x) => x.position = position,
+            Node::LeafDirective(x) => x.position = position,
+            Node::TextDirective(x) => x.position = position,
             Node::List(x) => x.position = position,
             Node::MdxjsEsm(x) => x.position = position,
             Node::Toml(x) => x.position = position,
@@ -505,6 +546,8 @@ impl Node {
             Node::LinkReference(x) => x.position = position,
             Node::Strong(x) => x.position = position,
             Node::Text(x) => x.position = position,
+            Node::WikiLink(x) => x.position = position,
+            Node::WikiEmbed(x) => x.position = position,
             Node::Code(x) => x.position = position,
             Node::Math(x) => x.position = position,
             Node::MdxFlowExpression(x) => x.position = position,
@@ -644,6 +687,130 @@ pub struct Heading {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ThematicBreak {
     // Void.
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+}
+
+/// Directive (text).
+///
+/// `remark-directive` compatible. The `attributes` are ordered key/value pairs;
+/// the `#id`/`.class` shortcuts are normalized to `id`/`class` keys (multiple
+/// classes are space-joined), matching `mdast-util-directive`.
+///
+/// ```markdown
+/// > | a :name[label]{key=value} b
+///       ^^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TextDirective {
+    // Parent.
+    /// Content model (the label, as phrasing).
+    pub children: Vec<Node>,
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+    // Extra.
+    /// Directive name.
+    pub name: String,
+    /// Ordered attributes (`id`/`class` normalized from `#`/`.` shortcuts).
+    pub attributes: Vec<(String, String)>,
+}
+
+/// Directive (leaf).
+///
+/// ```markdown
+/// > | ::name[label]{key=value}
+///     ^^^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct LeafDirective {
+    // Parent.
+    /// Content model (the label, as phrasing).
+    pub children: Vec<Node>,
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+    // Extra.
+    /// Directive name.
+    pub name: String,
+    /// Ordered attributes (`id`/`class` normalized from `#`/`.` shortcuts).
+    pub attributes: Vec<(String, String)>,
+}
+
+/// Directive (container).
+///
+/// The optional `[label]` on the opening fence becomes the first child
+/// paragraph (its phrasing content). The remaining children are the flow
+/// content between the fences.
+///
+/// ```markdown
+/// > | :::name{key=value}
+///     ^^^^^^^^^^^^^^^^^^
+/// > | content
+///     ^^^^^^^
+/// > | :::
+///     ^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ContainerDirective {
+    // Parent.
+    /// Content model (flow; an optional leading label paragraph).
+    pub children: Vec<Node>,
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+    // Extra.
+    /// Directive name.
+    pub name: String,
+    /// Ordered attributes (`id`/`class` normalized from `#`/`.` shortcuts).
+    pub attributes: Vec<(String, String)>,
+}
+
+/// Obsidian-style wiki link.
+///
+/// ```markdown
+/// > | a [[Page#Heading|Alias]] b
+///       ^^^^^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WikiLink {
+    // Void.
+    /// Target page or resource (before `#`/`|`).
+    pub target: String,
+    /// Fragment after `#` (heading), if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub fragment: Option<String>,
+    /// Display alias after `|`, if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub alias: Option<String>,
+    /// Positional info.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub position: Option<Position>,
+}
+
+/// Obsidian-style wiki embed.
+///
+/// ```markdown
+/// > | a ![[data.csv#view]] b
+///       ^^^^^^^^^^^^^^^^^^
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct WikiEmbed {
+    // Void.
+    /// Target page or resource (before `#`/`|`).
+    pub target: String,
+    /// Fragment after `#` (view), if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub fragment: Option<String>,
+    /// Display alias after `|`, if any.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub alias: Option<String>,
     /// Positional info.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub position: Option<Position>,

@@ -62,6 +62,9 @@
 //!
 //! The following constructs are extensions found in markdown:
 //!
+//! * [directive (container)][directive_container]
+//! * [directive (leaf)][directive_leaf]
+//! * [directive (text)][directive_text]
 //! * [frontmatter][]
 //! * [gfm autolink literal][gfm_autolink_literal]
 //! * [gfm footnote definition][gfm_footnote_definition]
@@ -73,12 +76,14 @@
 //! * [mdx expression (text)][mdx_expression_text]
 //! * [mdx jsx (flow)][mdx_jsx_flow]
 //! * [mdx jsx (text)][mdx_jsx_text]
+//! * [wiki link / embed][wiki]
 //!
 //! There are also several small subroutines typically used in different places:
 //!
 //! * [bom][partial_bom]
 //! * [data][partial_data]
 //! * [destination][partial_destination]
+//! * [directive name/label/attributes][partial_directive]
 //! * [label][partial_label]
 //! * [mdx expression][partial_mdx_expression]
 //! * [mdx jsx][partial_mdx_jsx]
@@ -157,6 +162,9 @@ pub mod character_reference;
 pub mod code_indented;
 pub mod content;
 pub mod definition;
+pub mod directive_container;
+pub mod directive_leaf;
+pub mod directive_text;
 pub mod document;
 pub mod flow;
 pub mod frontmatter;
@@ -183,6 +191,7 @@ pub mod paragraph;
 pub mod partial_bom;
 pub mod partial_data;
 pub mod partial_destination;
+pub mod partial_directive;
 pub mod partial_label;
 pub mod partial_mdx_expression;
 pub mod partial_mdx_jsx;
@@ -196,3 +205,4 @@ pub mod raw_text;
 pub mod string;
 pub mod text;
 pub mod thematic_break;
+pub mod wiki;

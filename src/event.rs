@@ -3377,11 +3377,75 @@ pub enum Name {
     /// ```
     ThematicBreakSequence,
 
+    /// Whole container directive fence line (opening `:::name…` or closing `:::`).
+    ///
+    /// Open and close fences share this token; `to_mdast` distinguishes them by
+    /// whether a [`DirectiveName`][Name::DirectiveName] is present, and matches
+    /// open/close pairs by colon count to reconstruct nesting.
+    DirectiveContainerFence,
+    /// Sequence of colons (`:::`) of a container directive fence.
+    DirectiveContainerSequence,
+    /// Whole leaf directive (`::name[label]{attrs}`).
+    DirectiveLeaf,
+    /// Sequence of colons (`::`) of a leaf directive.
+    DirectiveLeafSequence,
+    /// Whole text directive (`:name[label]{attrs}`).
+    DirectiveText,
+    /// Marker colon (`:`) of a text directive.
+    DirectiveTextMarker,
+    /// Name of a directive (shared by container, leaf, and text).
+    DirectiveName,
+    /// Whole directive label (`[…]`).
+    DirectiveLabel,
+    /// Directive label marker (`[` or `]`).
+    DirectiveLabelMarker,
+    /// Directive label content (phrasing).
+    DirectiveLabelString,
+    /// Whole directive attributes block (`{…}`).
+    DirectiveAttributes,
+    /// Directive attributes marker (`{` or `}`).
+    DirectiveAttributesMarker,
+    /// A single directive attribute.
+    DirectiveAttribute,
+    /// Directive attribute id shortcut marker (`#`).
+    DirectiveAttributeIdMarker,
+    /// Directive attribute id shortcut value.
+    DirectiveAttributeId,
+    /// Directive attribute class shortcut marker (`.`).
+    DirectiveAttributeClassMarker,
+    /// Directive attribute class shortcut value.
+    DirectiveAttributeClass,
+    /// Directive attribute name (bare or valued key).
+    DirectiveAttributeName,
+    /// Directive attribute initializer marker (`=`).
+    DirectiveAttributeInitializerMarker,
+    /// Directive attribute value marker (quote characters).
+    DirectiveAttributeValueMarker,
+    /// Directive attribute value (inner, without quotes).
+    DirectiveAttributeValue,
+
+    /// Whole wiki link (`[[target#fragment|alias]]`).
+    WikiLink,
+    /// Whole wiki embed (`![[target#fragment|alias]]`).
+    WikiEmbed,
+    /// Wiki marker (`!`, `[[`, or `]]`).
+    WikiMarker,
+    /// Wiki target (page or resource path).
+    WikiTarget,
+    /// Wiki fragment marker (`#`).
+    WikiFragmentMarker,
+    /// Wiki fragment (heading / view after `#`).
+    WikiFragment,
+    /// Wiki alias marker (`|`).
+    WikiAliasMarker,
+    /// Wiki alias (display text after `|`).
+    WikiAlias,
+
     LinePrefix,
 }
 
 /// List of void events, used to make sure everything is working well.
-pub const VOID_EVENTS: [Name; 76] = [
+pub const VOID_EVENTS: [Name; 96] = [
     Name::AttentionSequence,
     Name::AutolinkEmail,
     Name::AutolinkMarker,
@@ -3458,6 +3522,26 @@ pub const VOID_EVENTS: [Name; 76] = [
     Name::SpaceOrTab,
     Name::StrongSequence,
     Name::ThematicBreakSequence,
+    Name::DirectiveContainerSequence,
+    Name::DirectiveLeafSequence,
+    Name::DirectiveTextMarker,
+    Name::DirectiveName,
+    Name::DirectiveLabelMarker,
+    Name::DirectiveAttributesMarker,
+    Name::DirectiveAttributeIdMarker,
+    Name::DirectiveAttributeId,
+    Name::DirectiveAttributeClassMarker,
+    Name::DirectiveAttributeClass,
+    Name::DirectiveAttributeName,
+    Name::DirectiveAttributeInitializerMarker,
+    Name::DirectiveAttributeValueMarker,
+    Name::DirectiveAttributeValue,
+    Name::WikiMarker,
+    Name::WikiTarget,
+    Name::WikiFragmentMarker,
+    Name::WikiFragment,
+    Name::WikiAliasMarker,
+    Name::WikiAlias,
 ];
 
 /// Embedded content type.

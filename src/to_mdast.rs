@@ -3,11 +3,12 @@
 use crate::event::{Event, Kind, Name};
 use crate::mdast::{
     AttributeContent, AttributeValue, AttributeValueExpression, Blockquote, Break, Code,
-    Definition, Delete, Emphasis, FootnoteDefinition, FootnoteReference, Heading, Html, Image,
-    ImageReference, InlineCode, InlineMath, Link, LinkReference, List, ListItem, Math,
-    MdxFlowExpression, MdxJsxAttribute, MdxJsxExpressionAttribute, MdxJsxFlowElement,
-    MdxJsxTextElement, MdxTextExpression, MdxjsEsm, Node, Paragraph, ReferenceKind, Root, Strong,
-    Table, TableCell, TableRow, Text, ThematicBreak, Toml, Yaml,
+    ContainerDirective, Definition, Delete, Emphasis, FootnoteDefinition, FootnoteReference,
+    Heading, Html, Image, ImageReference, InlineCode, InlineMath, LeafDirective, Link,
+    LinkReference, List, ListItem, Math, MdxFlowExpression, MdxJsxAttribute,
+    MdxJsxExpressionAttribute, MdxJsxFlowElement, MdxJsxTextElement, MdxTextExpression, MdxjsEsm,
+    Node, Paragraph, ReferenceKind, Root, Strong, Table, TableCell, TableRow, Text, TextDirective,
+    ThematicBreak, Toml, WikiEmbed, WikiLink, Yaml,
 };
 use crate::message;
 use crate::unist::{Point, Position};
@@ -100,6 +101,16 @@ struct CompileContext<'a> {
     jsx_tag: Option<JsxTag>,
     media_reference_stack: Vec<Reference>,
     raw_flow_fence_seen: bool,
+    /// Name of the directive currently being parsed.
+    directive_name: String,
+    /// Raw (uncollapsed) attributes of the directive currently being parsed.
+    directive_attributes: Vec<(String, String)>,
+    /// Colon count of the container directive fence currently being parsed.
+    directive_size: usize,
+    /// Start point of the directive currently being parsed.
+    directive_start: Point,
+    /// Colon counts of currently-open container directives.
+    directive_stack: Vec<usize>,
     // Intermediate results.
     /// Primary tree and buffers.
     trees: Vec<(Node, Vec<usize>, Vec<usize>)>,
@@ -137,6 +148,11 @@ impl<'a> CompileContext<'a> {
             jsx_tag: None,
             media_reference_stack: vec![],
             raw_flow_fence_seen: false,
+            directive_name: String::new(),
+            directive_attributes: vec![],
+            directive_size: 0,
+            directive_start: Point::new(1, 1, 0),
+            directive_stack: vec![],
             trees: vec![(tree, vec![], vec![])],
             index: 0,
         }
@@ -232,6 +248,22 @@ pub fn compile(events: &[Event], bytes: &[u8]) -> Result<Node, message::Message>
     while index < events.len() {
         handle(&mut context, index)?;
         index += 1;
+    }
+
+    // EOF: auto-close any container directives still open (no closing fence).
+    while context.directive_stack.pop().is_some() {
+        let end = if events.is_empty() {
+            Point::new(1, 1, 0)
+        } else {
+            events[events.len() - 1].point.to_unist()
+        };
+        let (tree, stack, event_stack) = context.trees.last_mut().expect("expected tree");
+        let node = delve_mut(tree, stack);
+        if let Some(position) = node.position_mut() {
+            position.end = end;
+        }
+        stack.pop();
+        event_stack.pop();
     }
 
     debug_assert_eq!(context.trees.len(), 1, "expected 1 final tree");
@@ -330,6 +362,11 @@ fn enter(context: &mut CompileContext) -> Result<(), message::Message> {
         Name::Resource => on_enter_resource(context),
         Name::Strong => on_enter_strong(context),
         Name::ThematicBreak => on_enter_thematic_break(context),
+        Name::DirectiveText | Name::DirectiveLeaf | Name::DirectiveContainerFence => {
+            on_enter_directive(context);
+        }
+        Name::WikiLink => on_enter_wiki_link(context),
+        Name::WikiEmbed => on_enter_wiki_embed(context),
         _ => {}
     }
 
@@ -353,7 +390,9 @@ fn exit(context: &mut CompileContext) -> Result<(), message::Message> {
         | Name::ListUnordered
         | Name::Paragraph
         | Name::Strong
-        | Name::ThematicBreak => {
+        | Name::ThematicBreak
+        | Name::WikiLink
+        | Name::WikiEmbed => {
             on_exit(context)?;
         }
         Name::CharacterEscapeValue
@@ -431,6 +470,18 @@ fn exit(context: &mut CompileContext) -> Result<(), message::Message> {
         Name::ReferenceString => on_exit_reference_string(context),
         Name::ResourceDestinationString => on_exit_resource_destination_string(context),
         Name::ResourceTitleString => on_exit_resource_title_string(context),
+        Name::WikiTarget => on_exit_wiki_target(context),
+        Name::WikiFragment => on_exit_wiki_fragment(context),
+        Name::WikiAlias => on_exit_wiki_alias(context),
+        Name::DirectiveContainerSequence => on_exit_directive_container_sequence(context),
+        Name::DirectiveName => on_exit_directive_name(context),
+        Name::DirectiveAttributeId => on_exit_directive_attribute_id(context),
+        Name::DirectiveAttributeClass => on_exit_directive_attribute_class(context),
+        Name::DirectiveAttributeName => on_exit_directive_attribute_name(context),
+        Name::DirectiveAttributeValue => on_exit_directive_attribute_value(context),
+        Name::DirectiveText => on_exit_directive_text(context),
+        Name::DirectiveLeaf => on_exit_directive_leaf(context),
+        Name::DirectiveContainerFence => on_exit_directive_container_fence(context)?,
         _ => {}
     }
 
@@ -698,6 +749,72 @@ fn on_enter_strong(context: &mut CompileContext) {
 /// Handle [`Enter`][Kind::Enter]:[`ThematicBreak`][Name::ThematicBreak].
 fn on_enter_thematic_break(context: &mut CompileContext) {
     context.tail_push(Node::ThematicBreak(ThematicBreak { position: None }));
+}
+
+/// Handle [`Enter`][Kind::Enter]:[`WikiLink`][Name::WikiLink].
+fn on_enter_wiki_link(context: &mut CompileContext) {
+    context.tail_push(Node::WikiLink(WikiLink {
+        target: String::new(),
+        fragment: None,
+        alias: None,
+        position: None,
+    }));
+}
+
+/// Handle [`Enter`][Kind::Enter]:[`WikiEmbed`][Name::WikiEmbed].
+fn on_enter_wiki_embed(context: &mut CompileContext) {
+    context.tail_push(Node::WikiEmbed(WikiEmbed {
+        target: String::new(),
+        fragment: None,
+        alias: None,
+        position: None,
+    }));
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiTarget`][Name::WikiTarget].
+fn on_exit_wiki_target(context: &mut CompileContext) {
+    let value = Slice::from_position(
+        context.bytes,
+        &SlicePosition::from_exit_event(context.events, context.index),
+    )
+    .serialize();
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.target = value,
+        Node::WikiEmbed(node) => node.target = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiFragment`][Name::WikiFragment].
+fn on_exit_wiki_fragment(context: &mut CompileContext) {
+    let value = Some(
+        Slice::from_position(
+            context.bytes,
+            &SlicePosition::from_exit_event(context.events, context.index),
+        )
+        .serialize(),
+    );
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.fragment = value,
+        Node::WikiEmbed(node) => node.fragment = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
+}
+
+/// Handle [`Exit`][Kind::Exit]:[`WikiAlias`][Name::WikiAlias].
+fn on_exit_wiki_alias(context: &mut CompileContext) {
+    let value = Some(
+        Slice::from_position(
+            context.bytes,
+            &SlicePosition::from_exit_event(context.events, context.index),
+        )
+        .serialize(),
+    );
+    match context.tail_mut() {
+        Node::WikiLink(node) => node.alias = value,
+        Node::WikiEmbed(node) => node.alias = value,
+        _ => unreachable!("expected wiki link or embed on stack"),
+    }
 }
 
 /// Handle [`Enter`][Kind::Enter]:[`HeadingAtx`][Name::HeadingAtx].
@@ -1706,6 +1823,198 @@ fn on_exit_resource_title_string(context: &mut CompileContext) {
 }
 
 /// Create a position from an event.
+/// Handle the start of any directive (text, leaf, or container fence).
+///
+/// Resets the shared accumulators and opens a buffer to collect the optional
+/// label’s phrasing children.
+fn on_enter_directive(context: &mut CompileContext) {
+    context.directive_name = String::new();
+    context.directive_attributes = vec![];
+    context.directive_size = 0;
+    context.directive_start = context.events[context.index].point.to_unist();
+    context.buffer();
+}
+
+/// Capture the colon count of a container directive fence.
+fn on_exit_directive_container_sequence(context: &mut CompileContext) {
+    context.directive_size = Slice::from_position(
+        context.bytes,
+        &SlicePosition::from_exit_event(context.events, context.index),
+    )
+    .len();
+}
+
+/// Capture a directive name.
+fn on_exit_directive_name(context: &mut CompileContext) {
+    context.directive_name = directive_slice(context);
+}
+
+/// Capture a `#id` shortcut.
+fn on_exit_directive_attribute_id(context: &mut CompileContext) {
+    let value = directive_slice(context);
+    context.directive_attributes.push(("id".into(), value));
+}
+
+/// Capture a `.class` shortcut.
+fn on_exit_directive_attribute_class(context: &mut CompileContext) {
+    let value = directive_slice(context);
+    context.directive_attributes.push(("class".into(), value));
+}
+
+/// Capture an attribute name (bare or valued).
+fn on_exit_directive_attribute_name(context: &mut CompileContext) {
+    let name = directive_slice(context);
+    context.directive_attributes.push((name, String::new()));
+}
+
+/// Fill in the value of the most recent attribute.
+fn on_exit_directive_attribute_value(context: &mut CompileContext) {
+    let value = directive_slice(context);
+    if let Some(last) = context.directive_attributes.last_mut() {
+        last.1 = value;
+    }
+}
+
+/// Finish a text directive.
+fn on_exit_directive_text(context: &mut CompileContext) {
+    let (children, name, attributes, start) = directive_finish(context);
+    let end = context.events[context.index].point.to_unist();
+    let node = Node::TextDirective(TextDirective {
+        name,
+        attributes,
+        children,
+        position: Some(Position { start, end }),
+    });
+    directive_push_complete(context, node);
+}
+
+/// Finish a leaf directive.
+fn on_exit_directive_leaf(context: &mut CompileContext) {
+    let (children, name, attributes, start) = directive_finish(context);
+    let end = context.events[context.index].point.to_unist();
+    let node = Node::LeafDirective(LeafDirective {
+        name,
+        attributes,
+        children,
+        position: Some(Position { start, end }),
+    });
+    directive_push_complete(context, node);
+}
+
+/// Finish a container directive fence (opening or closing).
+///
+/// An opening fence (one with a name) pushes a [`ContainerDirective`] that stays
+/// open so the following flow content nests into it; a closing fence (only
+/// colons) pops the innermost open container. Unmatched closing fences become a
+/// paragraph of literal text.
+fn on_exit_directive_container_fence(
+    context: &mut CompileContext,
+) -> Result<(), message::Message> {
+    let raw_fence = directive_slice(context);
+    let (label_children, name, attributes, start) = directive_finish(context);
+    let end = context.events[context.index].point.to_unist();
+
+    if name.is_empty() {
+        // Closing fence.
+        if context.directive_stack.pop().is_some() {
+            context.tail_pop()?;
+        } else {
+            // Unmatched: emit the colons as plain text.
+            let text = Node::Text(Text {
+                value: raw_fence,
+                position: Some(Position {
+                    start: start.clone(),
+                    end: end.clone(),
+                }),
+            });
+            let para = Node::Paragraph(Paragraph {
+                children: vec![text],
+                position: Some(Position { start, end }),
+            });
+            directive_push_complete(context, para);
+        }
+    } else {
+        // Opening fence.
+        let mut children = vec![];
+        if !label_children.is_empty() {
+            children.push(Node::Paragraph(Paragraph {
+                children: label_children,
+                position: None,
+            }));
+        }
+        context.tail_push(Node::ContainerDirective(ContainerDirective {
+            name,
+            attributes,
+            children,
+            position: Some(Position {
+                start,
+                end: end.clone(),
+            }),
+        }));
+        context.directive_stack.push(context.directive_size);
+    }
+
+    Ok(())
+}
+
+/// Serialize the source covered by the current exit event.
+fn directive_slice(context: &CompileContext) -> String {
+    Slice::from_position(
+        context.bytes,
+        &SlicePosition::from_exit_event(context.events, context.index),
+    )
+    .serialize()
+}
+
+/// Resume the label buffer and take the shared accumulators.
+fn directive_finish(
+    context: &mut CompileContext,
+) -> (Vec<Node>, String, Vec<(String, String)>, Point) {
+    let label = context.resume();
+    let children = if let Node::Paragraph(paragraph) = label {
+        paragraph.children
+    } else {
+        vec![]
+    };
+    let name = core::mem::take(&mut context.directive_name);
+    let attributes = collapse_directive_attributes(core::mem::take(&mut context.directive_attributes));
+    let start = context.directive_start.clone();
+    (children, name, attributes, start)
+}
+
+/// Collapse raw directive attributes the way `mdast-util-directive` does:
+/// repeated `class` keys are space-joined; everything else (incl. `id`) is
+/// last-wins. Order follows first occurrence.
+fn collapse_directive_attributes(raw: Vec<(String, String)>) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = vec![];
+    for (key, value) in raw {
+        if key == "class" {
+            if let Some(existing) = out.iter_mut().find(|(k, _)| k == "class") {
+                existing.1.push(' ');
+                existing.1.push_str(&value);
+                continue;
+            }
+        }
+        if let Some(existing) = out.iter_mut().find(|(k, _)| *k == key) {
+            existing.1 = value;
+        } else {
+            out.push((key, value));
+        }
+    }
+    out
+}
+
+/// Push a fully-built node into the current parent without opening it on the
+/// stack.
+fn directive_push_complete(context: &mut CompileContext, node: Node) {
+    let (tree, stack, _) = context.trees.last_mut().expect("expected tree");
+    let parent = delve_mut(tree, stack);
+    parent
+        .children_mut()
+        .expect("expected parent")
+        .push(node);
+}
+
 fn position_from_event(event: &Event) -> Position {
     let end = Point::new(event.point.line, event.point.column, event.point.index);
     Position {

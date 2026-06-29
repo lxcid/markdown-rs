@@ -141,6 +141,8 @@ pub enum Name {
     FlowBlankLineBefore,
     FlowBlankLineAfter,
     FlowBeforeContent,
+    FlowBeforeDirectiveContainer,
+    FlowBeforeDirectiveLeaf,
 
     FrontmatterStart,
     FrontmatterOpenSequence,
@@ -452,12 +454,62 @@ pub enum Name {
     TextBeforeMdxJsx,
     TextBeforeHardBreakEscape,
     TextBeforeLabelStartLink,
+    TextBeforeLabelStartImage,
+    TextBeforeGfmLabelStartFootnote,
     TextBeforeData,
 
     ThematicBreakStart,
     ThematicBreakBefore,
     ThematicBreakSequence,
     ThematicBreakAtBreak,
+
+    DirectiveNameStart,
+    DirectiveNameInside,
+    DirectiveLabelStart,
+    DirectiveLabelInside,
+    DirectiveLabelEscape,
+    DirectiveAttributesStart,
+    DirectiveAttributesBetween,
+    DirectiveAttributeShortcutValue,
+    DirectiveAttributeNameInside,
+    DirectiveAttributeNameAfter,
+    DirectiveAttributeValueBefore,
+    DirectiveAttributeValueQuoted,
+    DirectiveAttributeValueUnquoted,
+
+    DirectiveTextStart,
+    DirectiveTextAfterMarker,
+    DirectiveTextAfterName,
+    DirectiveTextAfterLabel,
+    DirectiveTextAfterAttributes,
+    DirectiveTextNok,
+
+    DirectiveLeafStart,
+    DirectiveLeafSequenceOpen,
+    DirectiveLeafAfterName,
+    DirectiveLeafAfterLabel,
+    DirectiveLeafAfterAttributes,
+    DirectiveLeafEnd,
+    DirectiveLeafNok,
+
+    DirectiveContainerStart,
+    DirectiveContainerSequenceOpen,
+    DirectiveContainerAfterName,
+    DirectiveContainerAfterLabel,
+    DirectiveContainerAfterAttributes,
+    DirectiveContainerOpenAfter,
+    DirectiveContainerCloseStart,
+    DirectiveContainerCloseSequence,
+    DirectiveContainerCloseAfter,
+
+    WikiLinkStart,
+    WikiEmbedStart,
+    WikiBefore,
+    WikiTarget,
+    WikiFragment,
+    WikiAlias,
+    WikiClose,
+    WikiCloseAfter,
 
     TitleStart,
     TitleBegin,
@@ -578,6 +630,8 @@ pub fn call(tokenizer: &mut Tokenizer, name: Name) -> State {
         Name::FlowBlankLineBefore => construct::flow::blank_line_before,
         Name::FlowBlankLineAfter => construct::flow::blank_line_after,
         Name::FlowBeforeContent => construct::flow::before_content,
+        Name::FlowBeforeDirectiveContainer => construct::flow::before_directive_container,
+        Name::FlowBeforeDirectiveLeaf => construct::flow::before_directive_leaf,
 
         Name::FrontmatterStart => construct::frontmatter::start,
         Name::FrontmatterOpenSequence => construct::frontmatter::open_sequence,
@@ -951,12 +1005,70 @@ pub fn call(tokenizer: &mut Tokenizer, name: Name) -> State {
         Name::TextBeforeMdxJsx => construct::text::before_mdx_jsx,
         Name::TextBeforeHardBreakEscape => construct::text::before_hard_break_escape,
         Name::TextBeforeLabelStartLink => construct::text::before_label_start_link,
+        Name::TextBeforeLabelStartImage => construct::text::before_label_start_image,
+        Name::TextBeforeGfmLabelStartFootnote => {
+            construct::text::before_gfm_label_start_footnote
+        }
         Name::TextBeforeData => construct::text::before_data,
 
         Name::ThematicBreakStart => construct::thematic_break::start,
         Name::ThematicBreakBefore => construct::thematic_break::before,
         Name::ThematicBreakSequence => construct::thematic_break::sequence,
         Name::ThematicBreakAtBreak => construct::thematic_break::at_break,
+
+        Name::DirectiveNameStart => construct::partial_directive::name_start,
+        Name::DirectiveNameInside => construct::partial_directive::name_inside,
+        Name::DirectiveLabelStart => construct::partial_directive::label_start,
+        Name::DirectiveLabelInside => construct::partial_directive::label_inside,
+        Name::DirectiveLabelEscape => construct::partial_directive::label_escape,
+        Name::DirectiveAttributesStart => construct::partial_directive::attributes_start,
+        Name::DirectiveAttributesBetween => construct::partial_directive::attributes_between,
+        Name::DirectiveAttributeShortcutValue => {
+            construct::partial_directive::attribute_shortcut_value
+        }
+        Name::DirectiveAttributeNameInside => construct::partial_directive::attribute_name_inside,
+        Name::DirectiveAttributeNameAfter => construct::partial_directive::attribute_name_after,
+        Name::DirectiveAttributeValueBefore => construct::partial_directive::attribute_value_before,
+        Name::DirectiveAttributeValueQuoted => construct::partial_directive::attribute_value_quoted,
+        Name::DirectiveAttributeValueUnquoted => {
+            construct::partial_directive::attribute_value_unquoted
+        }
+
+        Name::DirectiveTextStart => construct::directive_text::start,
+        Name::DirectiveTextAfterMarker => construct::directive_text::after_marker,
+        Name::DirectiveTextAfterName => construct::directive_text::after_name,
+        Name::DirectiveTextAfterLabel => construct::directive_text::after_label,
+        Name::DirectiveTextAfterAttributes => construct::directive_text::after_attributes,
+        Name::DirectiveTextNok => construct::directive_text::nok,
+
+        Name::DirectiveLeafStart => construct::directive_leaf::start,
+        Name::DirectiveLeafSequenceOpen => construct::directive_leaf::sequence_open,
+        Name::DirectiveLeafAfterName => construct::directive_leaf::after_name,
+        Name::DirectiveLeafAfterLabel => construct::directive_leaf::after_label,
+        Name::DirectiveLeafAfterAttributes => construct::directive_leaf::after_attributes,
+        Name::DirectiveLeafEnd => construct::directive_leaf::end,
+        Name::DirectiveLeafNok => construct::directive_leaf::nok,
+
+        Name::DirectiveContainerStart => construct::directive_container::start,
+        Name::DirectiveContainerSequenceOpen => construct::directive_container::sequence_open,
+        Name::DirectiveContainerAfterName => construct::directive_container::after_name,
+        Name::DirectiveContainerAfterLabel => construct::directive_container::after_label,
+        Name::DirectiveContainerAfterAttributes => {
+            construct::directive_container::after_attributes
+        }
+        Name::DirectiveContainerOpenAfter => construct::directive_container::open_after,
+        Name::DirectiveContainerCloseStart => construct::directive_container::close_start,
+        Name::DirectiveContainerCloseSequence => construct::directive_container::close_sequence,
+        Name::DirectiveContainerCloseAfter => construct::directive_container::close_after,
+
+        Name::WikiLinkStart => construct::wiki::link_start,
+        Name::WikiEmbedStart => construct::wiki::embed_start,
+        Name::WikiBefore => construct::wiki::before,
+        Name::WikiTarget => construct::wiki::target,
+        Name::WikiFragment => construct::wiki::fragment,
+        Name::WikiAlias => construct::wiki::alias,
+        Name::WikiClose => construct::wiki::close,
+        Name::WikiCloseAfter => construct::wiki::close_after,
 
         Name::TitleStart => construct::partial_title::start,
         Name::TitleBegin => construct::partial_title::begin,

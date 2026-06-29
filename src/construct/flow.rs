@@ -81,6 +81,7 @@ pub fn start(tokenizer: &mut Tokenizer) -> State {
             );
             State::Retry(StateName::MdxExpressionFlowStart)
         }
+        Some(b':') => State::Retry(StateName::FlowBeforeDirectiveContainer),
         // Actual parsing: blank line? Indented code? Indented anything?
         // Tables, setext heading underlines, definitions, and Contents are
         // particularly weird.
@@ -227,6 +228,36 @@ pub fn before_gfm_table(tokenizer: &mut Tokenizer) -> State {
         State::Next(StateName::FlowBeforeContent),
     );
     State::Retry(StateName::GfmTableStart)
+}
+
+/// At a container directive fence.
+///
+/// ```markdown
+/// > | :::note
+///     ^
+/// ```
+pub fn before_directive_container(tokenizer: &mut Tokenizer) -> State {
+    tokenizer.attempt(
+        State::Next(StateName::FlowAfter),
+        State::Next(StateName::FlowBeforeDirectiveLeaf),
+    );
+    State::Retry(StateName::DirectiveContainerStart)
+}
+
+/// At a leaf directive.
+///
+/// ```markdown
+/// > | ::video[label]
+///     ^
+/// ```
+pub fn before_directive_leaf(tokenizer: &mut Tokenizer) -> State {
+    // On failure, fall through to the normal flow path (so `:` lines can still
+    // be blank lines, tables, content, etc.).
+    tokenizer.attempt(
+        State::Next(StateName::FlowAfter),
+        State::Next(StateName::FlowBlankLineBefore),
+    );
+    State::Retry(StateName::DirectiveLeafStart)
 }
 
 /// At content.
